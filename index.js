@@ -1,12 +1,11 @@
 import express from "express";
 import axios from "axios";
 import bodyParser from "body-parser";
+import { APIkey } from "./secretkeys.js";
 
 const app = express();
 const port = 3000;
 var option = "none";
-
-const APIkey = "AIzaSyCOEK7bxa-Cb_1eClyAhH8UJ2NyVAq4lcw";
 
 const API_URL = "https://maps.googleapis.com/maps/api/js?";
 const GEOCODE_GOOGLE_API_URL =
