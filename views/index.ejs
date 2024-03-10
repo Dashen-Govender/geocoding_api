@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Geotracker</title>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="/styles/main.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Roboto+Slab:wght@100..900&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+
+  <body>
+    <div class="container">
+      <form id="form" method="post">
+        <div id="blockorigin">
+          <label for="Origin">Origin</label>
+          <input type="text" id="Origin" name="origin" />
+          <% if (locals.message) {%>
+          <p id="message">⚠️<%= locals.message %></p>
+          <% } else if (locals.trackMessage) { if (locals.message1) {%>
+          <p id="message1">⚠️<%= locals.message1 %></p>
+          <% } } %>
+        </div>
+
+        <div id="blockdestination">
+          <label for="Destination">Destination</label>
+          <input type="text" id="Destination" name="destination" />
+          <% if (locals.trackMessage) { if (locals.message2) {%>
+          <p id="message2">⚠️<%= locals.message2 %></p>
+          <% } } %>
+        </div>
+
+        <div class="block">
+          <label for="submit">Place</label>
+          <input
+            class="button"
+            id="Find"
+            type="submit"
+            value="find"
+            formaction="/find"
+          />
+        </div>
+
+        <div id="map"></div>
+
+        <div class="block">
+          <label for="Distance">Distance</label>
+          <% if (locals.distance) {%>
+          <input
+            type="text"
+            id="Distance"
+            name="distance"
+            value="<%= locals.distance %>"
+            readonly
+          />
+          <% } else { %>
+          <input type="text" id="Distance" name="distance" readonly />
+          <% } %>
+        </div>
+
+        <div class="block">
+          <label for="Time">Time</label>
+          <% if (locals.time) {%>
+          <input
+            type="text"
+            id="Time"
+            name="time"
+            value="<%= locals.time %>"
+            readonly
+          />
+          <% } else { %>
+          <input type="text" id="Time" name="time" readonly />
+          <% } %>
+        </div>
+
+        <div class="block">
+          <label for="submit">Route</label>
+          <input
+            class="button"
+            id="Track"
+            type="submit"
+            value="track"
+            formaction="/track"
+          />
+        </div>
+      </form>
+    </div>
+
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+    <script type="module" charset="UTF-8">
+      let map;
+      let service;
+      let infowindow;
+      let autocomplete1;
+      let autocomplete2;
+
+      function initMap() {
+        if ("<%=locals.option%>" === "none") {
+          var center = { lat: 29.8587, lng: -31.0218 };
+        } else if ("<%=locals.option%>" === "find") {
+          if ("<%=locals.latitude%>" && "<%=locals.longitude%>") {
+            const latitude = "<%= locals.latitude %>";
+            const longitude = "<%= locals.longitude %>";
+            var center = {
+              lat: Number(latitude),
+              lng: Number(longitude),
+            };
+          }
+        } else if ("<%=locals.option%>" === "track") {
+          const Olatitude = "<%= locals.Olatitude %>";
+          const Olongitude = "<%= locals.Olongitude %>";
+          const Dlatitude = "<%= locals.Dlatitude %>";
+          const Dlongitude = "<%= locals.Dlongitude %>";
+          const center_of_lat = (Number(Olatitude) + Number(Dlatitude)) / 2;
+          const center_of_long = (Number(Olongitude) + Number(Dlongitude)) / 2;
+          var center = {
+            lat: center_of_lat,
+            lng: center_of_long,
+          };
+        }
+        // Create a bounding box with sides ~10km away from the center point
+        const defaultBounds = {
+          north: center.lat + 0.1,
+          south: center.lat - 0.1,
+          east: center.lng + 0.1,
+          west: center.lng - 0.1,
+        };
+        const input1 = document.getElementById("Origin");
+        const input2 = document.getElementById("Destination");
+        const options = {
+          bounds: defaultBounds,
+          componentRestrictions: { country: "za" },
+          fields: ["address_components", "geometry", "icon", "name"],
+          strictBounds: false,
+        };
+
+        autocomplete1 = new google.maps.places.Autocomplete(input1, options);
+        autocomplete2 = new google.maps.places.Autocomplete(input2, options);
+
+        autocomplete1.addListener("place_changed", onPlaceChanged1);
+        autocomplete2.addListener("place_changed", onPlaceChanged2);
+
+        const durban = new google.maps.LatLng(29.8587, 31.0218);
+
+        infowindow = new google.maps.InfoWindow();
+
+        const directionsService = new google.maps.DirectionsService();
+        const directionsRenderer = new google.maps.DirectionsRenderer();
+
+        if ("<%=locals.option%>" === "track") {
+          const Olatitude = "<%= locals.Olatitude %>";
+          const Olongitude = "<%= locals.Olongitude %>";
+          const Dlatitude = "<%= locals.Dlatitude %>";
+          const Dlongitude = "<%= locals.Dlongitude %>";
+          const center_of_lat = (Number(Olatitude) + Number(Dlatitude)) / 2;
+          const center_of_long = (Number(Olongitude) + Number(Dlongitude)) / 2;
+          map = new google.maps.Map(document.getElementById("map"), {
+            center: {
+              lat: center_of_lat,
+              lng: center_of_long,
+            },
+            zoom: 25,
+          });
+        } else {
+          map = new google.maps.Map(document.getElementById("map"), {
+            center: durban,
+            zoom: 15,
+          });
+        }
+
+        if ("<%=locals.option%>" === "none") {
+          var request = {
+            query: "Gateway Mall – Red Square",
+            fields: ["name", "geometry"],
+          };
+          service = new google.maps.places.PlacesService(map);
+          service.findPlaceFromQuery(request, (results, status) => {
+            if (
+              status === google.maps.places.PlacesServiceStatus.OK &&
+              results
+            ) {
+              for (let i = 0; i < results.length; i++) {
+                createMarker(results[i]);
+              }
+
+              map.setCenter(results[0].geometry.location);
+            }
+          });
+        } else if ("<%=locals.option%>" === "find") {
+          if ("<%=locals.address%>") {
+            const address = "<%=locals.address%>";
+            var request = {
+              query: JSON.stringify(address),
+              fields: ["name", "geometry"],
+            };
+          }
+          service = new google.maps.places.PlacesService(map);
+          service.findPlaceFromQuery(request, (results, status) => {
+            if (
+              status === google.maps.places.PlacesServiceStatus.OK &&
+              results
+            ) {
+              for (let i = 0; i < results.length; i++) {
+                createMarker(results[i]);
+              }
+
+              map.setCenter(results[0].geometry.location);
+            }
+          });
+        } else if ("<%=locals.option%>" === "track") {
+          directionsRenderer.setMap(map);
+          calculateAndDisplayRoute(directionsService, directionsRenderer);
+        }
+      }
+
+      function onPlaceChanged1() {
+        var place1 = autocomplete1.getPlace();
+
+        if (!place1.geometry) {
+          document.getElementById("Origin").placeholder = "Enter a place";
+        } else {
+          document.getElementById("Origin").innerText = place1.name;
+        }
+      }
+
+      function onPlaceChanged2() {
+        var place2 = autocomplete2.getPlace();
+
+        if (!place2.geometry) {
+          document.getElementById("Origin").placeholder = "Enter a place";
+        } else {
+          document.getElementById("Origin").innerText = place2.name;
+        }
+      }
+
+      function createMarker(place) {
+        if (!place.geometry || !place.geometry.location) return;
+
+        const marker = new google.maps.Marker({
+          map,
+          position: place.geometry.location,
+        });
+
+        google.maps.event.addListener(marker, "click", () => {
+          infowindow.setContent(place.name || "");
+          infowindow.open(map);
+        });
+      }
+
+      function calculateAndDisplayRoute(directionsService, directionsRenderer) {
+        console.log("<%= locals.destination %>");
+        directionsService
+          .route({
+            origin: {
+              query: "<%= locals.origin %>",
+            },
+            destination: {
+              query: "<%= locals.destination %>",
+            },
+            travelMode: google.maps.TravelMode.DRIVING,
+          })
+          .then((response) => {
+            directionsRenderer.setDirections(response);
+          })
+          .catch((e) => window.alert("Directions request failed due to " + e));
+      }
+
+      window.initMap = initMap;
+
+      if ("<%= locals.message %>") {
+        document.querySelector("#blockorigin").style.height = "80px";
+        document.querySelector("#message").style.display = "inline";
+
+        setTimeout(function () {
+          document.querySelector("#message").style.display = "none";
+          document.querySelector("#blockorigin").style.height = "50px";
+        }, 3000);
+      } else if ("<%= locals.trackMessage %>") {
+        if ("<%= locals.message1 %>" && !"<%= locals.message2 %>") {
+          document.querySelector("#blockorigin").style.height = "80px";
+          document.querySelector("#message1").style.display = "inline";
+          setTimeout(function () {
+            document.querySelector("#message1").style.display = "none";
+            document.querySelector("#blockorigin").style.height = "50px";
+          }, 3000);
+        } else if (!"<%= locals.message1 %>" && "<%= locals.message2 %>") {
+          document.querySelector("#blockdestination").style.height = "80px";
+          document.querySelector("#message2").style.display = "inline";
+          setTimeout(function () {
+            document.querySelector("#message2").style.display = "none";
+            document.querySelector("#blockdestination").style.height = "50px";
+          }, 3000);
+        } else {
+          document.querySelector("#blockorigin").style.height = "80px";
+          document.querySelector("#message1").style.display = "inline";
+          document.querySelector("#blockdestination").style.height = "80px";
+          document.querySelector("#message2").style.display = "inline";
+          setTimeout(function () {
+            document.querySelector("#message1").style.display = "none";
+            document.querySelector("#blockorigin").style.height = "50px";
+            document.querySelector("#message2").style.display = "none";
+            document.querySelector("#blockdestination").style.height = "50px";
+          }, 3000);
+        }
+      }
+    </script>
+    <% if (locals.API_URL && locals.APIkey) { %>
+    <script
+      src="<%=API_URL%>key=<%=APIkey%>&callback=initMap&libraries=places&v=weekly&loading=async"
+      defer
+    ></script>
+    <% } %>
+  </body>
+</html>
